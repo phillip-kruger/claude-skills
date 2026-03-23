@@ -16,7 +16,7 @@ Shared [Claude Code](https://docs.anthropic.com/en/docs/claude-code) skills for 
 ### 1. Clone this repo
 
 ```bash
-git clone https://github.com/phillip-kruger/claude-skills.git ~/.claude/claude-skills
+git clone https://github.com/quarkusio/claude-skills.git ~/.claude/claude-skills
 ```
 
 ### 2. Symlink the commands and tools
