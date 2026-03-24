@@ -430,12 +430,9 @@ def generate(diff_args, title, branch, summary=None, output_file=None):
 # ─── Watch mode ────────────────────────────────────────────────────────────────
 
 def _extract_diff_body(diff_html):
-    """Extract body content, stripping the <h1> title to avoid duplicates."""
+    """Extract body content from diff2html HTML, keeping the <h1> title."""
     body_match = re.search(r'<body[^>]*>(.*)</body>', diff_html, re.DOTALL)
-    body = body_match.group(1) if body_match else diff_html
-    # Remove the <h1> that diff2html adds (we show it in the sidebar/header)
-    body = re.sub(r'<h1[^>]*>.*?</h1>', '', body, count=1, flags=re.DOTALL)
-    return body
+    return body_match.group(1) if body_match else diff_html
 
 
 def _build_watch_page(title):
@@ -461,6 +458,20 @@ def _build_watch_page(title):
 var currentHash = null;
 var currentSummary = null;
 var layoutReady = false;
+
+function initDiff2HtmlUI(container) {{
+  // Re-run diff2html UI features (Viewed checkbox, file toggle, etc.)
+  if (window.Diff2HtmlUI) {{
+    var target = container || document.getElementById('es-main-content');
+    if (target) {{
+      var ui = new Diff2HtmlUI(target);
+      ui.fileContentToggle();
+      ui.fileListToggle(false);
+      ui.synchronisedScroll();
+      ui.highlightCode();
+    }}
+  }}
+}}
 
 function updateSidebar(meta) {{
   var sumEl = document.getElementById('es-summary-text');
@@ -537,6 +548,8 @@ function poll() {{
             else ns.textContent = s.textContent;
             document.head.appendChild(ns);
           }});
+          // Wait for scripts to load, then init diff2html UI features
+          setTimeout(function() {{ initDiff2HtmlUI(); }}, 500);
         }}
       }} else {{
         var mainEl = document.getElementById('es-main-content');
@@ -546,12 +559,7 @@ function poll() {{
           mainEl.scrollTop = scrollTop;
           mainEl.classList.add('es-update-flash');
           setTimeout(function() {{ mainEl.classList.remove('es-update-flash'); }}, 300);
-
-          if (window.hljs) {{
-            mainEl.querySelectorAll('pre code').forEach(function(block) {{
-              hljs.highlightElement(block);
-            }});
-          }}
+          initDiff2HtmlUI(mainEl);
         }}
         var meta = data.meta;
         if (data.ai_summary) meta = Object.assign({{}}, meta, {{ summary: data.ai_summary }});
