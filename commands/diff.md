@@ -1,95 +1,62 @@
 ---
-description: Show a rich, syntax-highlighted git diff in the browser. Use when the user wants to view changes, review a diff, compare branches, or see what changed in recent commits. Supports unstaged changes, staged changes, branch comparisons, and commit ranges.
+description: Show a rich, syntax-highlighted git diff in the browser. Use when the user wants to view changes, review a diff, compare branches, or see what changed in recent commits. Supports unstaged changes, staged changes, branch comparisons, and commit ranges. Also supports watch mode for live-updating diffs.
 ---
 
 Show a rich, syntax-highlighted git diff in the browser for: $ARGUMENTS
 
 ## Instructions
 
-Parse the arguments to determine which diff to show, then generate an enriched HTML diff and open it in the browser.
+### Fast mode (default)
 
-### Argument Parsing
+For instant results, run the all-in-one script directly. No need to read files or generate JSON — the script handles everything (git diff, diff2html, sidebar enrichment, browser open).
 
-| User says | Git command |
+| User says | Command |
 |---|---|
-| *(empty / no args)* | `git diff` (unstaged changes) |
-| `staged` | `git diff --staged` |
-| `branch <name>` | `git diff <name>...HEAD` |
-| `commit HEAD~N` or `commit <sha>` | `git diff HEAD~N..HEAD` or `git show <sha>` |
-| `<anything else>` | Pass directly to `git diff` as arguments |
+| *(empty / no args)* | `python3 ~/.claude/tools/diff-view.py` |
+| `staged` | `python3 ~/.claude/tools/diff-view.py --staged` |
+| `branch <name>` | `python3 ~/.claude/tools/diff-view.py --branch <name>` |
+| `commit HEAD~N` | `python3 ~/.claude/tools/diff-view.py --commit HEAD~N` |
+| `commit <sha>` | `python3 ~/.claude/tools/diff-view.py --commit <sha>` |
+| `watch` | `python3 ~/.claude/tools/diff-view.py --watch` |
+| `watch branch main` | `python3 ~/.claude/tools/diff-view.py --watch --branch main` |
+| `watch staged` | `python3 ~/.claude/tools/diff-view.py --watch --staged` |
 
-### Step 1: Gather info
-
-Get the branch name, diff stat, and the raw diff:
-
+Run the command in the background so it doesn't block the conversation:
 ```bash
-BRANCH=$(git rev-parse --abbrev-ref HEAD)
+python3 ~/.claude/tools/diff-view.py [args]
 ```
 
-Run `git diff --stat` (with the appropriate arguments) to see the affected files and change counts. Also run the full `git diff` and save it to a temp file:
-
+For watch mode, run in background:
 ```bash
-git diff > /tmp/claude-diff-output.patch
+python3 ~/.claude/tools/diff-view.py --watch [args] &
 ```
 
-If the diff is empty, tell the user there are no changes to show and stop.
+The sidebar will show a mechanical summary (file count and total changes). This is instant.
 
-### Step 2: Write the summary JSON
+### AI summary mode (optional)
 
-Read the diff (use the Read tool on `/tmp/claude-diff-output.patch`) and create a JSON file at `/tmp/claude-diff-meta.json` with this structure:
+If the user asks for an explained diff, a summary, or review-style output, add the `--summary` flag with a Claude-generated summary:
 
-```json
-{
-  "title": "Unstaged Changes",
-  "branch": "fix/my-branch",
-  "summary": "A 2-4 sentence summary explaining what the changes do and why. Focus on intent, not file listing. Keep it concise.",
-  "files": [
-    { "path": "src/main/java/com/example/Foo.java", "status": "M", "added": 13, "removed": 7 },
-    { "path": "src/main/java/com/example/Bar.java", "status": "A", "added": 45, "removed": 0 }
-  ]
-}
-```
-
-Status values: M (modified), A (added), D (deleted), R (renamed).
-Use the diff stat output to populate the `added`/`removed` counts.
-
-### Step 3: Generate the HTML
-
-1. Generate the diff2html content:
+1. Run `git diff` (with appropriate args) and read the output
+2. Write a concise 2-4 sentence summary explaining the intent of the changes
+3. Pass it to the script:
 ```bash
-cat /tmp/claude-diff-output.patch | diff2html -i stdin -s side -o stdout --title "[$BRANCH] Unstaged Changes" > /tmp/claude-diff-html.html
+python3 ~/.claude/tools/diff-view.py --summary "Your AI summary here" [other args]
 ```
 
-2. Run the enrichment script to inject the sidebar with file tree and summary:
-```bash
-python3 ~/.claude/tools/diff-enrich.py /tmp/claude-diff-html.html /tmp/claude-diff-meta.json /tmp/claude-diff-view.html
-```
+### Watch mode
 
-3. Open the final file:
-```bash
-xdg-open /tmp/claude-diff-view.html
-```
-
-4. Clean up temp files:
-```bash
-rm -f /tmp/claude-diff-output.patch /tmp/claude-diff-html.html /tmp/claude-diff-meta.json
-```
-
-### Adapt title based on diff type
-
-| Diff type | Title |
-|---|---|
-| Unstaged | `Unstaged Changes` |
-| Staged | `Staged Changes` |
-| Branch comparison | `Changes vs <branch>` |
-| Commit range | `Last N commits` |
-| Single commit | `<short-sha> — <commit message>` |
+When the user says `watch`, `/diff watch`, or asks for a live diff, the script:
+- Regenerates the HTML every 2 seconds
+- The browser auto-refreshes to show the latest diff
+- Shows a green "LIVE" badge in the sidebar
+- Runs until Ctrl+C
 
 ### Examples
 
-- `/diff` — show unstaged changes
-- `/diff staged` — show staged changes
+- `/diff` — instant unstaged changes
+- `/diff staged` — instant staged changes
 - `/diff branch main` — compare current branch to main
 - `/diff commit HEAD~3` — last 3 commits
-- `/diff commit abc123` — show a specific commit
-- `/diff -- src/main/java/` — diff only files in a specific directory
+- `/diff watch` — live-updating unstaged diff
+- `/diff watch branch main` — live-updating branch comparison
